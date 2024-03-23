@@ -1,0 +1,60 @@
+
+npx tailwindcss init
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+      "./src/**/*.{js,jsx,ts,tsx}",
+  ],
+  important:'#root',
+  theme: {
+      fontFamily: {
+        "poppins": ["Poppins","Helvetica","Arial","sans-serif"],
+      },
+      extend: {
+        colors:{
+          primary:"#EEDB00",
+        }
+      },
+  },
+  plugins: [],
+};
+//index.css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body, html {
+    margin: 0;
+    padding: 0;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    overflow-x: hidden;
+}
+body::-webkit-scrollbar {
+    display: none;
+}
+
+
+#materialUI
+npm install @mui/material @emotion/react @emotion/styled
+npm install @fontsource/roboto
+npm install @mui/icons-material
+
+#add StyledEngineProvider in index.js wrap the app component
+     <StyledEngineProvider injectFirst>
+      <App />
+    </StyledEngineProvider>
+     //By installing mui and tailwindcss the mui css will be at the bottom of <head> tag in index.html
+     if you look at from the browser console, 
+     so we need to inject mui css first so that tailwind can override styles//
+#AOS
+npm i aos
+import 'aos/dist/aos.css'; in App.js
+#in components
+useEffect(() => {
+      Aos.init();
+}, [])
+
+npm install framer-motion
+npm install firebase
+npm install react-router-dom
