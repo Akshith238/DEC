@@ -1,0 +1,649 @@
+//SQLlite
+
+MainActivity.kt
+package com.example.sample_sqllite
+
+import android.content.Intent
+import androidx.appcompat.app.AppCompatActivity
+import android.os.Bundle
+import android.widget.Button
+import android.widget.EditText
+import android.widget.TextView
+import android.widget.Toast
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var enterNameEditText: EditText
+    private lateinit var enterAgeEditText: EditText
+    private lateinit var addNameButton: Button
+    private lateinit var updateNameButton: Button
+    private lateinit var printNameButton: Button
+    private lateinit var idTextView: TextView
+    private lateinit var nameTextView: TextView
+    private lateinit var ageTextView: TextView
+    private lateinit var clearAllNamesButton : Button
+    private lateinit var intentButton: Button
+    private lateinit var dbHelper: DBHelper
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        // Initialize views
+        enterNameEditText = findViewById(R.id.enterName)
+        enterAgeEditText = findViewById(R.id.enterAge)
+        addNameButton = findViewById(R.id.addName)
+        updateNameButton = findViewById(R.id.updateName)
+        printNameButton = findViewById(R.id.printName)
+        idTextView = findViewById(R.id.Id)
+        nameTextView = findViewById(R.id.Name)
+        ageTextView = findViewById(R.id.Age)
+        clearAllNamesButton = findViewById(R.id.clearAllNames)
+        intentButton = findViewById(R.id.intent)
+
+        // Initialize DBHelper
+        dbHelper = DBHelper(this, null)
+
+        // Set click listeners
+        addNameButton.setOnClickListener {
+            val name = enterNameEditText.text.toString()
+            val age = enterAgeEditText.text.toString()
+            if (name.isNotEmpty() && age.isNotEmpty()) {
+                val newRowId = dbHelper.addName(name, age)
+                if (newRowId != -1L) {
+                    Toast.makeText(this, "$name added to database", Toast.LENGTH_SHORT).show()
+                    enterNameEditText.text.clear()
+                    enterAgeEditText.text.clear()
+                } else {
+                    Toast.makeText(this, "Failed to add $name to database", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(this, "Please enter both name and age", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        updateNameButton.setOnClickListener{
+            val name = enterNameEditText.text.toString()
+            val age = enterAgeEditText.text.toString()
+
+            if (name.isNotEmpty() && age.isNotEmpty()) {
+                val existingNames = dbHelper.getAllNames()
+                val existingName = existingNames.find { it.second == name }
+                if (existingName != null) {
+                    val rowsUpdated = dbHelper.updateName(name, age)
+                    if (rowsUpdated > 0) {
+                        Toast.makeText(this, "$name's age updated in database", Toast.LENGTH_SHORT).show()
+                        enterNameEditText.text.clear()
+                        enterAgeEditText.text.clear()
+                    } else {
+                        Toast.makeText(this, "Failed to update $name's age in database", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Toast.makeText(this, "$name does not exist in the database", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(this, "Please enter both name and age", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        printNameButton.setOnClickListener {
+            val names = dbHelper.getAllNames()
+            if (names.isNotEmpty()) {
+                // Clear existing text in TextViews
+                idTextView.text = ""
+                nameTextView.text = ""
+                ageTextView.text = ""
+
+                // Append headers to TextViews
+                idTextView.append("ID\n\n")
+                nameTextView.append("Name\n\n")
+                ageTextView.append("Age\n\n")
+
+                // Append retrieved data to TextViews
+                names.forEach { (id, name, age) ->
+                    idTextView.append("$id\n")
+                    nameTextView.append("$name\n")
+                    ageTextView.append("$age\n")
+                }
+            } else {
+                Toast.makeText(this, "No names found in the database", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        clearAllNamesButton.setOnClickListener {
+            val rowsDeleted = dbHelper.deleteAllNames()
+            if (rowsDeleted > 0) {
+                Toast.makeText(this, "All names deleted successfully", Toast.LENGTH_SHORT).show()
+                // Clear TextViews except for header lines
+                idTextView.text = "ID\n\n"
+                nameTextView.text = "Name\n\n"
+                ageTextView.text = "Age\n\n"
+            } else {
+                Toast.makeText(this, "Failed to delete all names", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        intentButton.setOnClickListener {
+            val valueToSend = "Hello"
+            val intent = Intent(this, MainActivity2::class.java)
+            intent.putExtra("message", valueToSend)
+            startActivity(intent)
+        }
+
+    }
+}
+
+DBhelper.kt
+package com.example.sample_sqllite
+import android.annotation.SuppressLint
+import android.content.ContentValues
+import android.content.Context
+import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteOpenHelper
+
+class DBHelper(context: Context, factory: SQLiteDatabase.CursorFactory?) :
+    SQLiteOpenHelper(context, DATABASE_NAME, factory, DATABASE_VERSION) {
+
+    // Below is the method for creating a database by a SQLite query
+    override fun onCreate(db: SQLiteDatabase) {
+
+        val query = ("CREATE TABLE $TABLE_NAME ("
+                + "$ID_COL INTEGER PRIMARY KEY, "
+                + "$NAME_COL TEXT UNIQUE, "
+                + "$AGE_COL TEXT)")
+
+        db.execSQL(query)
+    }
+
+
+    override fun onUpgrade(db: SQLiteDatabase, p1: Int, p2: Int) {
+        db.execSQL("DROP TABLE IF EXISTS $TABLE_NAME")
+        onCreate(db)
+    }
+
+    fun addName(name: String, age: String): Long {
+        val values = ContentValues().apply {
+            put(NAME_COL, name)
+            put(AGE_COL, age)
+        }
+        val db = writableDatabase
+        val newRowId = db.insert(TABLE_NAME, null, values)
+        db.close()
+        return newRowId
+    }
+
+    fun updateName(name: String, newAge: String): Int {
+        val values = ContentValues().apply {
+            put(AGE_COL, newAge)
+        }
+
+        // Define the WHERE clause to update the row with the given name
+        val selection = "$NAME_COL = ?"
+        val selectionArgs = arrayOf(name)
+
+        val db = writableDatabase
+        return db.update(TABLE_NAME, values, selection, selectionArgs)
+    }
+
+
+    @SuppressLint("Range")
+    fun getAllNames(): List<Triple<Long, String, String>> {
+        val names = mutableListOf<Triple<Long, String, String>>()
+        val db = readableDatabase
+        val cursor = db.rawQuery("SELECT $ID_COL, $NAME_COL, $AGE_COL FROM $TABLE_NAME", null)
+        cursor.use {
+            while (it.moveToNext()) {
+                val id = it.getLong(it.getColumnIndex(ID_COL))
+                val name = it.getString(it.getColumnIndex(NAME_COL))
+                val age = it.getString(it.getColumnIndex(AGE_COL))
+                names.add(Triple(id, name, age))
+            }
+        }
+        db.close()
+        return names
+    }
+
+    fun deleteAllNames(): Int {
+        val db = writableDatabase
+        val rowsDeleted = db.delete(TABLE_NAME, null, null)
+        db.close()
+        return rowsDeleted
+    }
+
+    companion object {
+        private const val DATABASE_NAME = "Sample"
+        private const val DATABASE_VERSION = 1
+        const val TABLE_NAME = "Person"
+        const val ID_COL = "id"
+        const val NAME_COL = "name"
+        const val AGE_COL = "age"
+    }
+}
+MainActivity2.kt
+package com.example.sample_sqllite
+
+import androidx.appcompat.app.AppCompatActivity
+import android.os.Bundle
+
+class MainActivity2 : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main2)
+        val receivedValue = intent.getStringExtra("message")
+
+    }
+}
+
+//ProgressBar
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+
+
+
+    <Button
+        android:id="@+id/clear"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="140dp"
+        android:layout_marginEnd="272dp"
+        android:text="uploading"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+
+    <ProgressBar
+        android:id="@+id/progressBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="268dp"
+        android:layout_marginEnd="200dp"
+        android:indeterminate="true"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+
+    <TextView
+        android:id="@+id/textView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="152dp"
+        android:layout_marginTop="48dp"
+        android:text="Indeterminate"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+
+    <Button
+        android:id="@+id/uploaded"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="144dp"
+        android:layout_marginEnd="60dp"
+        android:text="uploaded"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+
+    <ProgressBar
+        android:id="@+id/progressBar1"
+        style="@android:style/Widget.ProgressBar.Horizontal"
+        android:layout_width="318dp"
+        android:layout_height="7dp"
+        android:layout_marginStart="44dp"
+        android:layout_marginTop="584dp"
+        android:indeterminate="false"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="MissingConstraints" />
+
+
+    <TextView
+        android:id="@+id/textView3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="396dp"
+        android:text="Indeterminate"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:layout_editor_absoluteX="163dp"
+        tools:ignore="MissingConstraints" />
+
+
+    <Button
+        android:id="@+id/button2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="28dp"
+        android:layout_marginTop="500dp"
+        android:text="uploading"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="MissingConstraints" />
+
+
+    <Button
+        android:id="@+id/button3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="240dp"
+        android:layout_marginTop="500dp"
+        android:text="uploaded"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="MissingConstraints" />
+
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+package com.example.myapplication
+
+
+import android.annotation.SuppressLint
+import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
+import android.graphics.Color
+import androidx.appcompat.app.AppCompatActivity
+import android.os.Bundle
+import android.view.View
+import android.view.animation.Animation
+import android.view.animation.RotateAnimation
+import android.widget.ArrayAdapter
+import android.widget.Button
+import android.widget.CalendarView
+import android.widget.CheckBox
+import android.widget.DatePicker
+import android.widget.EditText
+import android.widget.ImageView
+import android.widget.ProgressBar
+import android.widget.RadioButton
+import android.widget.Spinner
+import android.widget.TextView
+import android.widget.Toast
+import android.os.Handler
+
+
+class MainActivity : AppCompatActivity() {
+    @SuppressLint("MissingInflatedId")
+    private val sharedPrefFile = "kotlinsharedpreference"
+    @SuppressLint("SetTextI18n", "MissingInflatedId")
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+
+        val btn=findViewById<Button>(R.id.clear)
+        val btn1=findViewById<Button>(R.id.uploaded)
+        val btn2=findViewById<Button>(R.id.button2)
+        val btn3=findViewById<Button>(R.id.button3)
+        val indeterminate =  findViewById<ProgressBar>(R.id.progressBar);
+        btn.setOnClickListener {
+            // Show the loader
+            indeterminate.visibility = View.VISIBLE
+
+            // Delay hiding the loader after a certain duration (e.g., 3 seconds)
+            Handler().postDelayed({
+                // Hide the loader
+                indeterminate.visibility = View.GONE
+            }, 3000) // 3000 milliseconds = 3 seconds
+
+        }
+        btn1.setOnClickListener()
+        {
+            indeterminate.setVisibility(View.GONE);
+        }
+        var determinate =  findViewById<ProgressBar>(R.id.progressBar1);
+
+
+        var currentProgress = 0
+        btn2.setOnClickListener(){
+
+            currentProgress = 10
+            determinate.setProgress(currentProgress);
+
+        }
+
+
+        btn3.setOnClickListener {
+            // Increment the current progress by 10
+            currentProgress += 10
+
+            // Ensure the progress does not exceed the maximum value (assuming maximum progress is 100)
+            if (currentProgress > 100) {
+                currentProgress = 100
+            }
+
+            // Set the progress
+            determinate.progress = currentProgress
+        }
+    }
+}
+
+//Shared Preference
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+
+
+
+    <TextView
+        android:id="@+id/textView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp"
+        android:text="Kotlin Shared preference"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+
+    <EditText
+        android:id="@+id/id"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="52dp"
+        android:ems="10"
+        android:hint="id"
+        android:inputType="text"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.736"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+
+    <TextView
+        android:id="@+id/id1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="64dp"
+        android:text="Enter id"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+
+    <TextView
+        android:id="@+id/value1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="128dp"
+        android:text="Enter value"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+
+    <EditText
+        android:id="@+id/value"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="148dp"
+        android:layout_marginTop="112dp"
+        android:ems="10"
+        android:hint="name"
+        android:inputType="text"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+
+    <TextView
+        android:id="@+id/textid"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="40dp"
+        android:layout_marginTop="228dp"
+        android:text="Id:"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+
+    <TextView
+        android:id="@+id/textvalue"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="40dp"
+        android:layout_marginTop="288dp"
+        android:text="Name:"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+
+    <TextView
+        android:id="@+id/showid"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="228dp"
+        android:layout_marginEnd="204dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+
+    <TextView
+        android:id="@+id/showvalue"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="288dp"
+        android:layout_marginEnd="204dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+
+    <Button
+        android:id="@+id/save"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="48dp"
+        android:layout_marginTop="500dp"
+        android:text="Save"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+
+    <Button
+        android:id="@+id/view"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="160dp"
+        android:layout_marginTop="500dp"
+        android:text="View"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+
+    <Button
+        android:id="@+id/clear"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="500dp"
+        android:layout_marginEnd="56dp"
+        android:text="Clear"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+</androidx.constraintlayout.widget.ConstraintLayout>
+package com.example.myapplication
+
+import android.annotation.SuppressLint
+import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
+import android.graphics.Color
+import androidx.appcompat.app.AppCompatActivity
+import android.os.Bundle
+import android.view.View
+import android.view.animation.Animation
+import android.view.animation.RotateAnimation
+import android.widget.ArrayAdapter
+import android.widget.Button
+import android.widget.CalendarView
+import android.widget.CheckBox
+import android.widget.DatePicker
+import android.widget.EditText
+import android.widget.ImageView
+import android.widget.RadioButton
+import android.widget.Spinner
+import android.widget.TextView
+import android.widget.Toast
+
+
+
+class MainActivity : AppCompatActivity() {
+    @SuppressLint("MissingInflatedId")
+    private val sharedPrefFile = "kotlinsharedpreference"
+    @SuppressLint("SetTextI18n")
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+        val id = findViewById<EditText>(R.id.id)
+        val value = findViewById<EditText>(R.id.value)
+        val save = findViewById<Button>(R.id.save)
+        val view = findViewById<Button>(R.id.view)
+        val clear = findViewById<Button>(R.id.clear)
+        val showid = findViewById<TextView>(R.id.showid)
+        val showvalue = findViewById<TextView>(R.id.showvalue)
+        val sharedPreferences: SharedPreferences = this.getSharedPreferences(sharedPrefFile,
+            Context.MODE_PRIVATE)
+
+        save.setOnClickListener(View.OnClickListener {
+            val id:Int = Integer.parseInt(id.text.toString())
+            val name:String = value.text.toString()
+            val editor: SharedPreferences.Editor =  sharedPreferences.edit()
+            editor.putInt("Id",id)
+            editor.putString("Value",name)
+            editor.apply()
+            editor.commit()
+            Toast.makeText(this, "Saved To Shared Preference", Toast.LENGTH_SHORT).show()
+        })
+        view.setOnClickListener {
+            val sharedIdValue = sharedPreferences.getInt("Id",0)
+            val sharedNameValue = sharedPreferences.getString("Value","defaultname")
+            if(sharedIdValue == 0 && sharedNameValue.equals("defaultname")){
+
+            }else{
+                showvalue.setText(sharedNameValue).toString()
+                showid.setText(sharedIdValue.toString())
+            }
+
+
+        }
+        clear.setOnClickListener(View.OnClickListener {
+            val editor = sharedPreferences.edit()
+            editor.clear()
+            editor.apply()
+            showid.setText("".toString())
+            showvalue.setText("".toString())
+            Toast.makeText(this, "Cleared Shared Preferences", Toast.LENGTH_SHORT).show()
+        })
+    }}
+
+
