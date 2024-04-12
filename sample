@@ -1,0 +1,116 @@
+#mdp
+
+states={
+    "pu":0,
+    "pf":0,
+    "ru":10,
+    "rf":10
+}
+
+transition_probabilities={
+    'S': {
+        'pu': {'pu': 1},
+        'pf': {'pu': 0.5,'rf': 0.5},
+        'ru': {'ru': 0.5, 'pu': 0.5},
+        'rf': {'ru': 0.5, 'rf': 0.5}
+    },
+    'A': {
+        'pu': {'pu': 0.5, 'pf': 0.5},
+        'pf': {'pf': 1.0},
+        'ru': {'pu': 0.5, 'pf': 0.5},
+        'rf': {'pf': 1}
+    }
+}
+
+num_iterations=2
+discount = 0.9
+states1= states.copy()
+for i in range(num_iterations):
+    updated_states=states.copy()
+    for state in states:
+        max_utility = float ('-inf')
+        for action in transition_probabilities:
+            action_utility = 0
+            for nextstate in transition_probabilities[action][state]:
+                action_utility += transition_probabilities[action][state][nextstate]*(states1[nextstate])
+            max_utility=max(max_utility,action_utility)
+        updated_states[state]=states[state]+(discount*max_utility)
+    states1=updated_states
+    print(f"Iteration {i+1}")
+    for state,prob in states1.items():
+        print(f"{state}:{prob}")
+    print()
+    
+#hmm code forward
+import numpy as np
+#A = 0,C = 1,G = 2,T = 3
+obs_seq = np.array([2 ,2 ,1, 0])
+states = np.array([0, 1])
+init_prob = np.array([0.5, 0.5])
+trans_prob = np.array([[0.5, 0.5],[0.4, 0.6]])
+emiss_prob = np.array([[0.2, 0.3, 0.3, 0.2],[0.3, 0.2, 0.2, 0.3]])
+
+def forward_algorithm(states,obs_seq,init_prob,trans_prob,emiss_prob):
+    T = len(obs_seq)
+    N = len(states)
+    
+    alpha = np.zeros((T,N))
+    
+    #initialization
+    for i in range(N):
+        alpha[0][i] = init_prob[i] * emiss_prob[i][obs_seq[0]]
+    
+    for t in range(1,T):
+        for j in range(N): #curr state
+            prob_value = 0 
+            for i in range(N):
+                prob_value += alpha[t-1][i] * trans_prob[i][j] * emiss_prob[j][obs_seq[t]]
+            alpha[t][j] = prob_value
+    prob_value = np.sum(alpha[-1])
+    return prob_value                         
+    
+print(forward_algorithm(states,obs_seq,init_prob,trans_prob,emiss_prob))
+        
+obs_seq = np.array([2 ,2 ,1, 0, 1, 3, 2, 0, 0])
+states = np.array([0, 1])
+init_prob = np.array([-1, -1])
+trans_prob = np.array([[-1, -1],[-1.322, -0.737]])
+emiss_prob = np.array([[-2.2322, -1.737, -1.737, -2.322],[-1.737, -2.322, -2.322, -1.737]])
+
+def viterbi_algorithm(states, obs_seq,init_prob,trans_prob,emiss_prob):
+    T = len(obs_seq)
+    N = len(states)
+    
+    prob = np.zeros((T,N))
+    viterbi = np.zeros((T,N))
+    path = np.zeros((T,N),dtype=int)
+    
+    #initialization
+    for i in range(N):
+        viterbi[0][i] = init_prob[i] + emiss_prob[i][obs_seq[0]]
+        prob[0][i] = init_prob[i] + emiss_prob[i][obs_seq[0]]
+        
+    for t in range(1,T):
+        for j in range(N):
+            max_prob=float('-inf')
+            max_state=0
+            for i in range(N):
+                probability = prob[t-1][i] + trans_prob[i][j]
+                if probability > max_prob:
+                    max_prob = probability
+                    max_state = i
+            prob[t][j] = emiss_prob[j][obs_seq[t]] + max_prob
+            viterbi[t][j] = max_prob
+            path[t][j] = max_state
+                    
+    max_prob = np.max(prob[-1])                
+    last_state=np.argmax(viterbi[-1])
+    hidden_states=[last_state]
+    
+    for t in range(T-1,0,-1):
+        last_state = path[t][last_state]
+        hidden_states.insert(0,last_state)
+    
+    return hidden_states,max_prob,prob
+
+print(viterbi_algorithm(states,obs_seq,init_prob,trans_prob,emiss_prob))
